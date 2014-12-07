@@ -3,24 +3,22 @@
 # e.g. buddycloud.conf if $1=='buddycloud'
 # the file paths listed are relative to $HOME
 
-# TODO - rewrite some time to do exclude paths as well.
-
-ROOTDIR=$HOME
-TMPDIR=$HOME/tmp
-BACKUPDIR=$HOME/backups
+mydir=${0%/*}
+. $mydir/bash-ini-multisection/ini-parse.sh
+cfg_parser ${mydir%/*}/etc/backup.ini
+cfg_section global
 
 cd $ROOTDIR # all paths relative to home directory.
 
 if [ -z "$1" ]; then
     echo "backup <config-name>"
-    echo "run a backup config from $HOME/etc/backup.d/<config-name>.conf"
+    echo "run a backup configuration from $CONFDIR/<config-name>.ini"
     exit 1
 fi
 
 config=$1
 tarfile=$BACKUPDIR/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
-conffile=$ROOTDIR/etc/backup.d/${config}.conf
-globconffile=$ROOTDIR/etc/backup.conf
+conffile=$CONFIDR/${config}.ini
 
 if ! [ -f "$conffile" ] ; then
     echo "Error - configuration $config not found"
