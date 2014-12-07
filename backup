@@ -3,12 +3,32 @@
 # e.g. buddycloud.conf if $1=='buddycloud'
 # the file paths listed are relative to $HOME
 
-mydir=${0%/*}
+mydir=`readlink -f $0`
+mydir=${mydir%/*}
 . $mydir/bash-ini-multisection/ini-parse.sh
-cfg_parser ${mydir%/*}/etc/backup.ini
+confdir=${0%/*}
+if [ "$confdir" == "." ]; then
+  confdir=`pwd`
+fi
+if [ "$confdir" == ".." ]; then
+  confdir=`pwd`
+  confdir=${confdir%/*}
+fi
+confdir=${confdir%/*}/etc # edit this if your global config is somewhere else.
+if [ "$mydir" == "." ]; then
+  mydir=`pwd`
+fi
+if [ "$mydir" == ".." ]; then
+  mydir=`pwd`
+  mydir=${mydir%/*}
+fi
+cfg_parser $confdir/backup.ini
 cfg_section global
+eval rootdir=$rootdir # eval is so ~ works
+eval tmpdir=$tmpdir
+eval backupdir=$backupdir
 
-cd $ROOTDIR # all paths relative to home directory.
+cd $backupdir # all paths relative to home directory
 
 if [ -z "$1" ]; then
     echo "backup <config-name>"
@@ -17,16 +37,11 @@ if [ -z "$1" ]; then
 fi
 
 config=$1
-tarfile=$BACKUPDIR/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
-conffile=$CONFIDR/${config}.ini
+tarfile=$backupdir/manual/${config}/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
+conffile=$confdir/backup.d/${config}.ini
 
 if ! [ -f "$conffile" ] ; then
     echo "Error - configuration $config not found"
-    exit 1
-fi
-
-if ! [ -f "$globconffile" ] ; then
-    echo "Error - global configuration file not found"
     exit 1
 fi
 
@@ -34,30 +49,37 @@ if [ -f "$tarfile" ]; then
     echo "Error - output file already exists."
 fi
 
-# source the config files.
-. $globconffile
-. $conffile
+# read the file for this backup config.
+cfg_parser $conffile
 
-# make a list of files to be included.
+# backup the files.
+# read in the include and exclude lists
+cfg_section files
+eval include=( $include )
+eval exclude=( $exclude )
+echo $include $exclude
+
+echo ${#include[*]}
+exit 0
 echo "Backing up files."
 echo "INCLUDE=${INCLUDE[*]}"
 echo "EXCLUDE=${EXCLUDE[*]}"
 find "${INCLUDE[@]}" | sort | uniq | {
     while read f ; do
-	    [ -d "$f" ] && continue # skip directories.
-	    excl=0
-	    if [ -n "${EXCLUDE[*]}" ] ; then
-		# filter on a list of regex paths to exclude.
-		for regex in "${EXCLUDE[@]}" ;do
-		    if echo $f | grep -q "^$regex" ; then
-			excl=1
-		    fi
-		done
-	    else 
-		excl=0
-	    fi
-	    [ "$excl" == "0" ] && echo $f	    
-	done
+      [ -d "$f" ] && continue # skip directories.
+      excl=0
+      if [ -n "${EXCLUDE[*]}" ] ; then
+    # filter on a list of regex paths to exclude.
+    for regex in "${EXCLUDE[@]}" ;do
+        if echo $f | grep -q "^$regex" ; then
+      excl=1
+        fi
+    done
+      else 
+    excl=0
+      fi
+      [ "$excl" == "0" ] && echo $f	    
+  done
     } | tar zcf $TMPDIR/backup-files.tar.gz --files-from -
 # add the files archive to the full archive (which includes databases).
 cd $TMPDIR
