@@ -1,0 +1,90 @@
+#!/bin/bash
+# backup according to a config file in etc/backup.d/<config>.conf
+# e.g. buddycloud.conf if $1=='buddycloud'
+# the file paths listed are relative to $HOME
+
+# TODO - rewrite some time to do exclude paths as well.
+
+ROOTDIR=$HOME
+TMPDIR=$HOME/tmp
+BACKUPDIR=$HOME/backups
+
+cd $ROOTDIR # all paths relative to home directory.
+
+if [ -z "$1" ]; then
+    echo "backup <config-name>"
+    echo "run a backup config from $HOME/etc/backup.d/<config-name>.conf"
+    exit 1
+fi
+
+config=$1
+tarfile=$BACKUPDIR/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
+conffile=$ROOTDIR/etc/backup.d/${config}.conf
+globconffile=$ROOTDIR/etc/backup.conf
+
+if ! [ -f "$conffile" ] ; then
+    echo "Error - configuration $config not found"
+    exit 1
+fi
+
+if ! [ -f "$globconffile" ] ; then
+    echo "Error - global configuration file not found"
+    exit 1
+fi
+
+if [ -f "$tarfile" ]; then
+    echo "Error - output file already exists."
+fi
+
+# source the config files.
+. $globconffile
+. $conffile
+
+# make a list of files to be included.
+echo "Backing up files."
+echo "INCLUDE=${INCLUDE[*]}"
+echo "EXCLUDE=${EXCLUDE[*]}"
+find "${INCLUDE[@]}" | sort | uniq | {
+    while read f ; do
+	    [ -d "$f" ] && continue # skip directories.
+	    excl=0
+	    if [ -n "${EXCLUDE[*]}" ] ; then
+		# filter on a list of regex paths to exclude.
+		for regex in "${EXCLUDE[@]}" ;do
+		    if echo $f | grep -q "^$regex" ; then
+			excl=1
+		    fi
+		done
+	    else 
+		excl=0
+	    fi
+	    [ "$excl" == "0" ] && echo $f	    
+	done
+    } | tar zcf $TMPDIR/backup-files.tar.gz --files-from -
+# add the files archive to the full archive (which includes databases).
+cd $TMPDIR
+tar cf $tarfile backup-files.tar.gz
+rm backup-files.tar.gz
+
+# now dump all the databases
+echo Backing up databases
+for db in "${DATABASES[@]}"; do
+    eval $db
+    echo -n "  $name "
+    case $type in
+        mysql)
+            echo '(mysql)'
+            mysqldump $name --user=$username --password=$password > $name.sql
+            ;;
+        pgsql)
+            echo '(pgsql)'
+            pg_dump -U $username $name > $name.sql
+            ;;
+        *)
+            echo '(not recognised)'
+            ;;
+    esac
+    gzip $name.sql
+    tar rf $tarfile $name.sql.gz # append the sql file to the full archive
+    rm $name.sql.gz
+done
