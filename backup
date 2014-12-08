@@ -1,7 +1,42 @@
 #!/bin/bash
-# backup according to a config file in etc/backup.d/<config>.conf
-# e.g. buddycloud.conf if $1=='buddycloud'
-# the file paths listed are relative to $HOME
+# backup files and directories according to a <confname>.ini file
+# e.g. buddycloud.ini if $1=='buddycloud'
+
+# TODO - allow spaces in filenames.
+
+function regexify()
+{
+  regexes="("
+  once=0
+  for path in "${@}"; do
+    if [ $once -ne 0 ]; then
+      regexes+="|"
+    fi
+    once=1
+    path=^$path
+    if [ "$path" == "${path%/}" ]; then
+      # no trailing / so it's a single filename
+      path+="$"
+    else
+      # it's a directory, so allow the directory and all below.
+      path=${path%/}
+    fi
+    regexes+=$path
+  done
+  regexes+=")"
+}
+
+parms=()
+tardir=manual
+while [ "$1" != "" ]; do
+  if [ "$1" == "-a" ] ; then
+    tardir=nightly
+    shift
+    continue
+  fi
+  parms+=( "$1" )
+  shift
+done
 
 mydir=`readlink -f $0`
 mydir=${mydir%/*}
@@ -28,83 +63,111 @@ eval rootdir=$rootdir # eval is so ~ works
 eval tmpdir=$tmpdir
 eval backupdir=$backupdir
 
-cd $backupdir # all paths relative to home directory
 
-if [ -z "$1" ]; then
+if [ ${#parms[*]} -eq 0 ]; then
     echo "backup <config-name>"
     echo "run a backup configuration from $CONFDIR/<config-name>.ini"
     exit 1
 fi
 
-config=$1
-tarfile=$backupdir/manual/${config}/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
-conffile=$confdir/backup.d/${config}.ini
+echo -n "Starting backup(s) in "
+if [ "$tardir" == "manual" ] ; then
+  echo -n "manual"
+else
+  echo -n "automatic"
+fi
+echo -e " mode"
 
-if ! [ -f "$conffile" ] ; then
-    echo "Error - configuration $config not found"
+# do each of the backups
+for config in "${parms[@]}"; do
+  echo
+  echo "Backing up $config"
+  cd $rootdir # all paths relative to home directory
+  tarfile=$backupdir/$tardir/${config}/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
+  conffile=$confdir/backup.d/${config}.ini
+  echo $conffile
+
+  mkdir -p $backupdir/manual/$config $backupdir/nightly/$config $backupdir/weekly/$config $backupdir/monthly/$config
+
+  if ! [ -d "$tmpdir" ] ; then
+    echo "  Error - Temporary directory not found"
     exit 1
-fi
+  fi
 
-if [ -f "$tarfile" ]; then
-    echo "Error - output file already exists."
-fi
+  if ! [ -f "$conffile" ] ; then
+      echo "  Error - configuration $config not found"
+      exit 1
+  fi
 
-# read the file for this backup config.
-cfg_parser $conffile
+  if [ -f "$tarfile" ]; then
+      echo "  Error - output file already exists."
+  fi
 
-# backup the files.
-# read in the include and exclude lists
-cfg_section files
-eval include=( $include )
-eval exclude=( $exclude )
-echo $include $exclude
+  # read the file for this backup config.
+  cfg_parser $conffile
 
-echo ${#include[*]}
-exit 0
-echo "Backing up files."
-echo "INCLUDE=${INCLUDE[*]}"
-echo "EXCLUDE=${EXCLUDE[*]}"
-find "${INCLUDE[@]}" | sort | uniq | {
-    while read f ; do
-      [ -d "$f" ] && continue # skip directories.
-      excl=0
-      if [ -n "${EXCLUDE[*]}" ] ; then
-    # filter on a list of regex paths to exclude.
-    for regex in "${EXCLUDE[@]}" ;do
-        if echo $f | grep -q "^$regex" ; then
-      excl=1
-        fi
-    done
-      else 
-    excl=0
-      fi
-      [ "$excl" == "0" ] && echo $f	    
+  # backup the files.
+  # read in the include and exclude lists
+  cfg_section files
+  echo "  Backing up files:"
+  echo "  Including: $include"
+  echo "  Excluding: $exclude"
+  # turn the entries into full regexes.
+  if [ "${exclude}" == "" ] ; then
+    exclude="^$" # i.e. exclude nothing
+  fi
+  regexify $exclude
+  exclude=$regexes
+
+  find $include | sort | uniq | egrep -v $exclude | tar zcf $tmpdir/backup-files.tar.gz --files-from -
+  # add the files archive to the full archive (which includes databases).
+  cd $tmpdir
+  tar cf $tarfile backup-files.tar.gz
+  rm backup-files.tar.gz
+
+  # now dump all the databases
+  echo "  Backing up databases"
+  cfg_section_keys database
+  for key in ${keys[*]}; do
+      cfg_section database $key
+      echo -n "    $name "
+      case $type in
+          mysql)
+              echo '(mysql)'
+              mysqldump $name --user=$username --password=$password > $name.sql
+              ;;
+          pgsql)
+              echo '(pgsql)'
+              pg_dump -U $username $name > $name.sql
+              ;;
+          *)
+              echo '(not recognised)'
+              ;;
+      esac
+      gzip $name.sql
+      tar rf $tarfile $name.sql.gz # append the sql file to the full archive
+      rm $name.sql.gz
   done
-    } | tar zcf $TMPDIR/backup-files.tar.gz --files-from -
-# add the files archive to the full archive (which includes databases).
-cd $TMPDIR
-tar cf $tarfile backup-files.tar.gz
-rm backup-files.tar.gz
 
-# now dump all the databases
-echo Backing up databases
-for db in "${DATABASES[@]}"; do
-    eval $db
-    echo -n "  $name "
-    case $type in
-        mysql)
-            echo '(mysql)'
-            mysqldump $name --user=$username --password=$password > $name.sql
-            ;;
-        pgsql)
-            echo '(pgsql)'
-            pg_dump -U $username $name > $name.sql
-            ;;
-        *)
-            echo '(not recognised)'
-            ;;
-    esac
-    gzip $name.sql
-    tar rf $tarfile $name.sql.gz # append the sql file to the full archive
-    rm $name.sql.gz
+  if [ "$tardir" == "nightly" ] ; then
+    # we're in auto mode, so make links in the weekly and monthly dirs if appropriate.
+    if [ "$nightlyfiles" == "" ] || [ "$weeklyday" == "" ] || [ "$weeklyfiles" == "" ] || [ "$monthlyday" == "" ] || [ "$monthlyfiles" == "" ] ; then
+      echo "  Error - Missing configuration entries for auto mode"
+      exit 1
+    fi
+    date=`date`
+    if [ `date -d "$date" +%a` == "$weeklyday" ] ; then
+      ln $tarfile $backupdir/weekly/$config
+    fi
+    if [ `date -d "$date" +%d` == "$monthlyday" ] ; then
+      ln $tarfile $backupdir/monthly/$config
+    fi
+    # remove old backup files from auto directories.
+    cd $backupdir/nightly/$config
+    ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
+    cd $backupdir/weekly/$config
+    ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+    cd $backupdir/monthly/$config
+    ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
+  fi
 done
