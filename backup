@@ -163,10 +163,22 @@ for config in "${parms[@]}"; do
       ln $tarfile $backupdir/monthly/$config
     fi
     # remove old backup files from auto directories.
+    if ! [ -d $backupdir/nightly/$config ] ; then
+      echo "Error - Can't find nightly backup dir."
+      exit 1
+    fi
     cd $backupdir/nightly/$config
     ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
+    if ! [ -d $backupdir/weekly/$config ] ; then
+      echo "Error - Can't find weekly backup dir."
+      exit 1
+    fi
     cd $backupdir/weekly/$config
     ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+    if ! [ -d $backupdir/monthly/$config ] ; then
+      echo "Error - Can't find monthly backup dir."
+      exit 1
+    fi
     cd $backupdir/monthly/$config
     ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
   fi
