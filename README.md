@@ -7,7 +7,7 @@ It can be invoked in either manual or scheduled mode. Manual mode makes a single
 
 Installation
 ------------
-To install, clone the repo and symlink `backup` to `/usr/local/bin/backup`, and `backup.ini` to `/usr/local/etc/backup.ini`. Make a directory `backup.d` in `/usr/local/etc`; this contains any number of `<backup-config-name>.ini` files, which define a particular set of files and databases to back up. `test.ini` in this directory can be used as a template. For more information, see the comments in `backup.ini` and `test.ini`.
+To install, clone the repo and symlink `backup` to `/usr/local/bin/backup`, and `backup.ini` to `/usr/local/etc/backup.ini`. Make a directory `backup.d` in `/usr/local/etc`; this contains any number of `<backup-config-name>.ini` files, which define a particular set of files and databases to back up. `example.ini` in this directory can be used as a template. For more information, see the comments in `backup.ini` and `example.ini`.
 
 Invocation
 ----------
