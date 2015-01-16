@@ -86,7 +86,11 @@ for config in "${parms[@]}"; do
 
   tarfile=$backupdir/$tardir/${config}/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
   conffile=$confdir/backup.d/${config}.ini
-  echo $conffile
+
+  if ! [ -r "$conffile" ] ; then
+    echo "configuration '$config' does not exist"
+    continue
+  fi
 
   mkdir -p $backupdir/manual/$config $backupdir/nightly/$config $backupdir/weekly/$config $backupdir/monthly/$config
 
@@ -133,7 +137,7 @@ for config in "${parms[@]}"; do
   if [ "$include" != "" ] ; then
     # there are files to back up.
     cd $rootdir # include paths relative to rootdir
-    find $include | sort | uniq | egrep -v $exclude | tar zcf $tmpdir/backup-files.tar.gz --files-from -
+    find $include -type f | sort | uniq | egrep -v $exclude | tar zcf $tmpdir/backup-files.tar.gz --files-from -
     # add the files archive to the full archive (which includes databases).
     cd $tmpdir
     tar rf $tarfile backup-files.tar.gz
