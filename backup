@@ -84,7 +84,7 @@ for config in "${parms[@]}"; do
   echo
   echo "Backing up $config"
 
-  tarfile=$backupdir/$tardir/${config}/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
+  tarfile=$backupdir/${config}/$tardir/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
   conffile=$confdir/backup.d/${config}.ini
 
   if ! [ -r "$conffile" ] ; then
@@ -92,7 +92,7 @@ for config in "${parms[@]}"; do
     continue
   fi
 
-  mkdir -p $backupdir/manual/$config $backupdir/nightly/$config $backupdir/weekly/$config $backupdir/monthly/$config
+  mkdir -p $backupdir/$config/manual $backupdir/$config/nightly $backupdir/$config/weekly $backupdir/$config/monthly
 
   if ! [ -d "$tmpdir" ] ; then
     echo "  Error - Temporary directory not found"
@@ -171,24 +171,24 @@ for config in "${parms[@]}"; do
   if [ "$tardir" == "nightly" ] ; then
     # we're in auto mode, so make links in the weekly and monthly dirs if appropriate.
     date=`date`
-    if [ `date -d "$date" +%a` == "$weeklyday" ] ; then
-      ln $tarfile $backupdir/weekly/$config
+    if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
+      ln $tarfile $backupdir/$config/weekly
     fi
-    if [ `date -d "$date" +%d` == "$monthlyday" ] ; then
-      ln $tarfile $backupdir/monthly/$config
+    if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
+      ln $tarfile $backupdir/$config/monthly
     fi
     # remove old backup files from auto directories.
-    cd $backupdir/nightly/$config || {
+    cd $backupdir/$config/nightly || {
       echo "Error - Can't find nightly backup dir."
       exit 1
     }
     ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
-    cd $backupdir/weekly/$config || {
+    cd $backupdir/$config/weekly || {
       echo "Error - Can't find weekly backup dir."
       exit 1
     }
     ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
-    cd $backupdir/monthly/$config || {
+    cd $backupdir/$config/monthly || {
       echo "Error - Can't find monthly backup dir."
       exit 1
     }
