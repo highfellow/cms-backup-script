@@ -75,7 +75,7 @@ monthlyfiles=3
 
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
-cfg_section global
+cfg_section_merge global
 eval rootdir=$rootdir # eval is so ~ works
 eval tmpdir=$tmpdir
 eval backupdir=$backupdir
@@ -120,7 +120,8 @@ for config in "${parms[@]}"; do
   # read the file for this backup config.
   cfg_parser $conffile
 
-  # read in the file include and exclude lists
+  # read in any overridden globals and the file include and exclude lists
+  cfg_section_merge global
   cfg_section files
   echo "  Backing up files:"
   echo "  Including: $include"
