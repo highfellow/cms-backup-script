@@ -64,6 +64,15 @@ if [ "$confdir" == ".." ]; then
 fi
 confdir=${confdir%/*}/etc # edit this if your global config is somewhere else.
 
+# set some defaults.
+include=""
+exclude=""
+nightlyfiles=8
+weeklyday=Tue
+weeklyfiles=5
+monthlyday=01
+monthlyfiles=3
+
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
 cfg_section global
@@ -107,15 +116,6 @@ for config in "${parms[@]}"; do
   if [ -f "$tarfile" ]; then
       echo "  Error - output file already exists."
   fi
-
-  # set some defaults.
-  include=""
-  exclude=""
-  nightlyfiles=8
-  weeklyday=Tue
-  weeklyfiles=5
-  monthlyday=01
-  monthlyfiles=3
 
   # read the file for this backup config.
   cfg_parser $conffile
@@ -169,13 +169,13 @@ for config in "${parms[@]}"; do
   done
 
   if [ "$tardir" == "nightly" ] ; then
-    # we're in auto mode, so make links in the weekly and monthly dirs if appropriate.
+    # we're in auto mode, so make copies in the weekly and monthly dirs if appropriate.
     date=`date`
     if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
-      ln $tarfile $backupdir/$config/weekly
+      cp $tarfile $backupdir/$config/weekly
     fi
     if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
-      ln $tarfile $backupdir/$config/monthly
+      cp $tarfile $backupdir/$config/monthly
     fi
     # remove old backup files from auto directories.
     cd $backupdir/$config/nightly || {
@@ -183,15 +183,19 @@ for config in "${parms[@]}"; do
       exit 1
     }
     ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
-    cd $backupdir/$config/weekly || {
-      echo "Error - Can't find weekly backup dir."
-      exit 1
-    }
-    ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
-    cd $backupdir/$config/monthly || {
-      echo "Error - Can't find monthly backup dir."
-      exit 1
-    }
-    ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
+    if [ $weeklyfiles -gt 0 ] ; then
+      cd $backupdir/$config/weekly || {
+        echo "Error - Can't find weekly backup dir."
+        exit 1
+      }
+      ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+    fi
+    if [ $monthlyfiles -gt 0 ] ; then
+      cd $backupdir/$config/monthly || {
+        echo "Error - Can't find monthly backup dir."
+        exit 1
+      }
+      ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
+    fi
   fi
 done
