@@ -61,37 +61,31 @@ for config in *; do
   fi
   echo "generating weeklies/monthlies for $config"
   # find latest nightly backup and copy to weekly/monthly dir if appropriate
-  tarfile=`ls -t $backupdir/$config/nightly | tail -n 1`
+  tarfile=$backupdir/$config/nightly/`ls $backupdir/$config/nightly | tail -n 1`
   # remove old backup files from auto directories.
   cd $backupdir/$config/nightly || {
     echo "Error - Can't find nightly backup dir."
     exit 1
   }
-  ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
-  if [ "`ls -1 $backupdir/$config/weekly | wc -l`" == "0" ] ; then
-    # if the weeklies weren't kept on the server, generate them here.
-    if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
-      cp $tarfile $backupdir/$config/weekly
-    fi
-    if [ $weeklyfiles -gt 0 ] ; then
-      cd $backupdir/$config/weekly || {
-        echo "Error - Can't find weekly backup dir."
-        exit 1
-      }
-      ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
-    fi
+  ls -r | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
+  if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
+    cp $tarfile $backupdir/$config/weekly
   fi
-  if [ "`ls -1 $backupdir/$config/monthly | wc -l`" == "0" ] ; then
-    # same with the monthlies
-    if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
-      cp $tarfile $backupdir/$config/monthly
-    fi
-    if [ $monthlyfiles -gt 0 ] ; then
-      cd $backupdir/$config/monthly || {
-        echo "Error - Can't find monthly backup dir."
-        exit 1
-      }
-      ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
-    fi
+  if [ $weeklyfiles -gt 0 ] ; then
+    cd $backupdir/$config/weekly || {
+      echo "Error - Can't find weekly backup dir."
+      exit 1
+    }
+    ls -r | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+  fi
+  if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
+    cp $tarfile $backupdir/$config/monthly
+  fi
+  if [ $monthlyfiles -gt 0 ] ; then
+    cd $backupdir/$config/monthly || {
+      echo "Error - Can't find monthly backup dir."
+      exit 1
+    }
+    ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
   fi
 done
