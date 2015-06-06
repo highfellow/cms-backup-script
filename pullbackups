@@ -52,7 +52,7 @@ fi
 echo "Pulling down backups from $rsyncsrc to $backupdir"
 
 cd $backupdir
-rsync -av $rsyncsrc/ .
+rsync -av $rsyncsrc .
 date=`date`
 for config in *; do
   # skip non-directories
@@ -60,6 +60,8 @@ for config in *; do
     continue
   fi
   echo "generating weeklies/monthlies for $config"
+  # make subdirs if needed
+  mkdir -p $backupdir/$config/nightly $backupdir/$config/weekly $backupdir/$config/monthly
   # find latest nightly backup and copy to weekly/monthly dir if appropriate
   tarfile=$backupdir/$config/nightly/`ls $backupdir/$config/nightly | tail -n 1`
   # remove old backup files from auto directories.
