@@ -6,6 +6,7 @@
 
 function regexify()
 {
+  # construct a single regex out of a set of sub-regexes.
   regexes="("
   once=0
   for path in "${@}"; do
@@ -27,16 +28,15 @@ function regexify()
 }
 
 # set some defaults
-tmpdir=/tmp
 rootdir=/
 backupdir=/var/backups
 
 # read in arguments
 parms=()
-tardir=manual
+mode=manual
 while [ "$1" != "" ]; do
   if [ "$1" == "-a" ] ; then
-    tardir=nightly
+    mode=nightly
     shift
     continue
   fi
@@ -77,12 +77,11 @@ monthlyfiles=3
 cfg_parser $confdir/backup.ini
 cfg_section_merge global
 eval rootdir=$rootdir # eval is so ~ works
-eval tmpdir=$tmpdir
 eval backupdir=$backupdir
 
 # start doing the backups.
 echo -n "Starting backup(s) in "
-if [ "$tardir" == "manual" ] ; then
+if [ "$mode" == "manual" ] ; then
   echo -n "manual"
 else
   echo -n "automatic"
@@ -93,7 +92,6 @@ for config in "${parms[@]}"; do
   echo
   echo "Backing up $config"
 
-  tarfile=$backupdir/${config}/$tardir/${config}-`date +%Y-%m-%d-%H-%M-%S`.tar
   conffile=$confdir/backup.d/${config}.ini
 
   if ! [ -r "$conffile" ] ; then
@@ -102,19 +100,16 @@ for config in "${parms[@]}"; do
   fi
 
   mkdir -p $backupdir/$config/manual $backupdir/$config/nightly $backupdir/$config/weekly $backupdir/$config/monthly
-
-  if ! [ -d "$tmpdir" ] ; then
-    echo "  Error - Temporary directory not found"
-    exit 1
-  fi
+  modedir=$backupdir/$config/$mode
+  outdir=$modedir/${config}-`date +%Y-%m-%d-%H-%M-%S`
 
   if ! [ -f "$conffile" ] ; then
       echo "  Error - configuration $config not found"
       exit 1
   fi
 
-  if [ -f "$tarfile" ]; then
-      echo "  Error - output file already exists."
+  if [ -f "$outdir" ]; then
+      echo "  Error - output dir already exists."
   fi
 
   # read the file for this backup config.
@@ -133,16 +128,19 @@ for config in "${parms[@]}"; do
   regexify $exclude
   exclude=$regexes
 
-  # start making the archive.
-  tar cf $tarfile --files-from /dev/null
+  # start making the output directory
+  if [ "`ls $modedir`" != "" ] ; then
+    olddir=$modedir/`ls $modedir -t | head -n 1`
+  else
+    mkdir -p $modedir/dummy $modedir/dummy/files $modedir/dummy/databases
+    olddir=$modedir/dummy
+    sleep 2 # so the dummy dir is older than the new dir.
+  fi
+  mkdir -p $outdir $outdir/files $outdir/databases
   if [ "$include" != "" ] ; then
-    # there are files to back up.
-    cd $rootdir # include paths relative to rootdir
-    find $include -type f | sort | uniq | egrep -v $exclude | tar zcf $tmpdir/backup-files.tar.gz --files-from -
-    # add the files archive to the full archive (which includes databases).
-    cd $tmpdir
-    tar rf $tarfile backup-files.tar.gz
-    rm backup-files.tar.gz
+    # there are files to back up. Include paths relative to rootdir.
+    cd $rootdir
+    find $include -type f | sort | uniq | egrep -v $exclude | rsync -at --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
   fi
 
   # now dump all the databases
@@ -154,49 +152,48 @@ for config in "${parms[@]}"; do
       case $type in
           mysql)
               echo '(mysql)'
-              mysqldump $name --user=$username --password=$password > $name.sql
+              mysqldump $name --user=$username --password=$password > $outdir/databases/$name.sql
               ;;
           pgsql)
               echo '(pgsql)'
-              pg_dump -U $username $name > $name.sql
+              pg_dump -U $username $name > $outdir/databases/$name.sql
               ;;
           *)
               echo '(not recognised)'
               ;;
       esac
-      gzip $name.sql
-      tar rf $tarfile $name.sql.gz # append the sql file to the full archive
-      rm $name.sql.gz
   done
 
-  if [ "$tardir" == "nightly" ] ; then
+  if [ "$mode" == "nightly" ] ; then
     # we're in auto mode, so make copies in the weekly and monthly dirs if appropriate.
+    rm -f $backupdir/$config/latest
+    ln -s $outdir $backupdir/$config/latest
     date=`date`
     if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
-      cp $tarfile $backupdir/$config/weekly
+      cp -rl $outdir $backupdir/$config/weekly
     fi
     if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
-      cp $tarfile $backupdir/$config/monthly
+      cp -rl $outdir $backupdir/$config/monthly
     fi
     # remove old backup files from auto directories.
     cd $backupdir/$config/nightly || {
       echo "Error - Can't find nightly backup dir."
       exit 1
     }
-    ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
+    ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -rf
     if [ $weeklyfiles -gt 0 ] ; then
       cd $backupdir/$config/weekly || {
         echo "Error - Can't find weekly backup dir."
         exit 1
       }
-      ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+      ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -rf
     fi
     if [ $monthlyfiles -gt 0 ] ; then
       cd $backupdir/$config/monthly || {
         echo "Error - Can't find monthly backup dir."
         exit 1
       }
-      ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
+      ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
     fi
   fi
 done
