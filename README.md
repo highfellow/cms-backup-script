@@ -3,7 +3,7 @@ CMS Backup script
 
 This is a script which handles backups of a content management system. I.e. some files plus one or more databases. The files can be specified quite flexibly as paths to include or exclude relative to a top level directory given in the global config file. The databases can be (currently) either mysql or postgresql.
 
-Each backup consists of a directory containing all of the backed up files and databases. The directory name gives the name of the backup configuration being run, plus a date stamp. Identical files between backups are hard links to the same inode; this means that each successive backup only uses the extra disk space taken up by the changed or new files. This means that you need to run the script on a filesystem that supports hard links.
+Each backup consists of a directory containing all of the backed up files and databases. The directory name gives the name of the backup configuration being run, plus a date stamp. Identical files between backups are hard links to the same inode; this means that each successive backup only uses the extra disk space taken up by the changed or new files. (You need to run the script on a filesystem that supports hard links).
 
 It can be invoked in either manual or automatic mode. Manual mode makes a single backup with a date stamp; automatic mode can be called from a cron job to generate a series of nightly, weekly, and monthly backups.
 
