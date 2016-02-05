@@ -27,6 +27,20 @@ function regexify()
   regexes+=")"
 }
 
+finish () {
+  # leave the script, and print and log a message.
+  err="$1"
+  message="$2"
+  if [ "$" == "" ] ; then
+    message="Bye bye."
+  fi
+  echo "Exiting: $message"
+  if [ "$mode" == "nightly" ]; then
+    echo "`date` - $message" >>$summaryfile
+  fi
+  exit $err
+}
+
 # set some defaults
 rootdir=/
 backupdir=/var/backups
@@ -43,6 +57,7 @@ while [ "$1" != "" ]; do
   parms+=( "$1" )
   shift
 done
+
 
 if [ ${#parms[*]} -eq 0 ]; then
     echo "backup <config-name>"
@@ -72,12 +87,25 @@ weeklyday=Tue
 weeklyfiles=5
 monthlyday=01
 monthlyfiles=3
+logfile=/var/log/backup.log
+errfile=/var/log/backup.err
+summaryfile=/var/log/backup.smy
 
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
 cfg_section_merge global
 eval rootdir=$rootdir # eval is so ~ works
 eval backupdir=$backupdir
+eval logfile=$logfile
+eval errfile=$errfile
+eval summaryfile=$summaryfile
+eval logrotatestate=$logrotatestate
+
+if [ "$mode" == "nightly" ]; then
+  # redirect output.
+  exec >$logfile 2>$errfile
+  logrotate -s $logrotatestate $confdir/backup.logrotate
+fi
 
 # start doing the backups.
 echo -n "Starting backup(s) in "
@@ -104,12 +132,11 @@ for config in "${parms[@]}"; do
   outdir=$modedir/${config}-`date +%Y-%m-%d-%H-%M-%S`
 
   if ! [ -f "$conffile" ] ; then
-      echo "  Error - configuration $config not found"
-      exit 1
+      finish 2 "  Error - configuration $config not found"
   fi
 
   if [ -f "$outdir" ]; then
-      echo "  Error - output dir already exists."
+      finish 2 "  Error - output dir already exists."
   fi
 
   # read the file for this backup config.
@@ -140,7 +167,12 @@ for config in "${parms[@]}"; do
   if [ "$include" != "" ] ; then
     # there are files to back up. Include paths relative to rootdir.
     cd $rootdir
-    find $include -type f | sort | uniq | egrep -v $exclude | rsync -at --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
+    if [ "$mode" == "manual" ] ; then
+      verbose=
+    else
+      verbose=v
+    fi
+    find $include -type f | sort | uniq | egrep -v $exclude | rsync -at$verbose --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
   fi
 
   # now dump all the databases
@@ -177,23 +209,23 @@ for config in "${parms[@]}"; do
     fi
     # remove old backup files from auto directories.
     cd $backupdir/$config/nightly || {
-      echo "Error - Can't find nightly backup dir."
-      exit 1
+      finish 2 "Error - Can't find nightly backup dir."
     }
     ls -t | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -rf
     if [ $weeklyfiles -gt 0 ] ; then
       cd $backupdir/$config/weekly || {
-        echo "Error - Can't find weekly backup dir."
-        exit 1
+        finish 2 "Error - Can't find weekly backup dir."
       }
       ls -t | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -rf
     fi
     if [ $monthlyfiles -gt 0 ] ; then
       cd $backupdir/$config/monthly || {
-        echo "Error - Can't find monthly backup dir."
-        exit 1
+        finish 2 "Error - Can't find monthly backup dir."
       }
       ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
     fi
   fi
 done
+
+finish 0 "Backup completed"
+
