@@ -39,9 +39,9 @@ monthlyfiles=3
 # parse the global configuration 
 cfg_parser $confdir/pullbackups.ini
 cfg_section global
-eval backupdir=$backupdir
-if [ "$rsyncsrc" == "" ] ; then
-  echo "Rsync source string not found in $confdir/pullbackups.ini"
+eval backupdir=$backupdir # so that ~s work.
+if [ "$remotedir" == "" ] ; then
+  echo "Remote directory not found in $confdir/pullbackups.ini"
   exit 1
 fi
 if [ "$backupdir" == "" ] ; then
@@ -49,45 +49,49 @@ if [ "$backupdir" == "" ] ; then
   exit 1
 fi
 
-echo "Pulling down backups from $rsyncsrc to $backupdir"
+echo "Pulling down backups from $remotedir to $backupdir"
 
 cd $backupdir
-rsync -av $rsyncsrc .
 date=`date`
-for config in *; do
-  # skip non-directories
-  if ! [ -d $backupdir/$config ] ; then
-    continue
-  fi
-  echo "generating weeklies/monthlies for $config"
+for config in "$@"; do
   # make subdirs if needed
   mkdir -p $backupdir/$config/nightly $backupdir/$config/weekly $backupdir/$config/monthly
-  # find latest nightly backup and copy to weekly/monthly dir if appropriate
-  tarfile=$backupdir/$config/nightly/`ls $backupdir/$config/nightly | tail -n 1`
+  # pull down last nightly from remote.
+  echo "pulling last nightly for $config"
+  if [ "`ls $backupdir/$config/nightly`" != "" ]; then
+    olddir=$backupdir/$config/nightly/`ls -r $backupdir/$config/nightly | head -n 1`
+  else
+    olddir=$backupdir/$config/nightly/1970-01-01-00-00-00
+    mkdir -p $olddir
+    sleep 2 # so new dir is datestamped later.
+  fi
+  newdir=$backupdir/$config/nightly/`date +%Y-%m-%d-%H-%M-%S`
+  rsync -atz --copy-links --partial --delete --link-dest=$olddir $remotedir/$config/latest/ $newdir
+  echo "generating weeklies/monthlies for $config"
   # remove old backup files from auto directories.
   cd $backupdir/$config/nightly || {
     echo "Error - Can't find nightly backup dir."
     exit 1
   }
-  ls -r | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -f
+  ls -r | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -rf
   if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
-    cp $tarfile $backupdir/$config/weekly
+    cp -rl $newdir $backupdir/$config/weekly
   fi
   if [ $weeklyfiles -gt 0 ] ; then
     cd $backupdir/$config/weekly || {
       echo "Error - Can't find weekly backup dir."
       exit 1
     }
-    ls -r | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -f
+    ls -r | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -rf
   fi
   if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
-    cp $tarfile $backupdir/$config/monthly
+    cp -rl $newdir $backupdir/$config/monthly
   fi
   if [ $monthlyfiles -gt 0 ] ; then
     cd $backupdir/$config/monthly || {
       echo "Error - Can't find monthly backup dir."
       exit 1
     }
-    ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -f
+    ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
   fi
 done
