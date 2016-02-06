@@ -41,15 +41,15 @@ finish () {
   exit $err
 }
 
-# set some defaults
-rootdir=/
-backupdir=/var/backups
-
 # read in arguments
 parms=()
 mode=manual
 while [ "$1" != "" ]; do
-  if [ "$1" == "-a" ] ; then
+  if [ "$1" == "-s" ] || [ "$1" == "--summarise" ] ; then
+    mode=summary
+    break
+  fi
+  if [ "$1" == "-a" ] || [ "$1" == "--auto" ]; then
     mode=nightly
     shift
     continue
@@ -58,9 +58,8 @@ while [ "$1" != "" ]; do
   shift
 done
 
-
-if [ ${#parms[*]} -eq 0 ]; then
-    echo "backup <config-name>"
+if [ "$mode" != "summary" ] && [ ${#parms[*]} -eq 0 ]; then
+    echo "backup [-a] [-s] [<config-name>...]"
     echo "run a backup configuration from $CONFDIR/<config-name>.ini"
     exit 1
 fi
@@ -80,6 +79,8 @@ fi
 confdir=${confdir%/*}/etc # edit this if your global config is somewhere else.
 
 # set some defaults.
+rootdir=/
+backupdir=/var/backups
 include=""
 exclude=""
 nightlyfiles=8
@@ -90,6 +91,7 @@ monthlyfiles=3
 logfile=/var/log/backup.log
 errfile=/var/log/backup.err
 summaryfile=/var/log/backup.smy
+mailto=
 
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
@@ -99,12 +101,18 @@ eval backupdir=$backupdir
 eval logfile=$logfile
 eval errfile=$errfile
 eval summaryfile=$summaryfile
-eval logrotatestate=$logrotatestate
+
+if [ "$mode" == "summary" ] && [ "$mailto" != "" ]; then
+  cat $summaryfile | mail -s "Backup summary for $USER@`hostname`" $mailto
+  echo -e "Summary of this week's backup runs for $USER@`hostname`.\n" > $summaryfile
+  exit 0
+fi
 
 if [ "$mode" == "nightly" ]; then
   # redirect output.
-  exec >$logfile 2>$errfile
-  logrotate -s $logrotatestate $confdir/backup.logrotate
+  echo "Starting up at `date`" >>$logfile
+  echo "Starting up at `date`" >>$errfile
+  exec >>$logfile 2>>$errfile
 fi
 
 # start doing the backups.
