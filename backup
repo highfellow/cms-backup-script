@@ -103,6 +103,7 @@ eval errfile=$errfile
 eval summaryfile=$summaryfile
 
 if [ "$mode" == "summary" ] && [ "$mailto" != "" ]; then
+  echo -e "\nDisk usage\n----------\n`df -h`" >> $summaryfile
   cat $summaryfile | mail -s "Backup summary for $USER@`hostname`" $mailto
   echo -e "Summary of this week's backup runs for $USER@`hostname`.\n" > $summaryfile
   exit 0
