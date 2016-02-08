@@ -64,13 +64,9 @@ for remote in $*; do
     exit 1
   fi
   # iterate through list of remote configs
-  remoteconfigs=${remoteconfigs},
-  while [ "$remoteconfigs" != "" ] ; do
-    config=${remoteconfigs%%,*}
-    remoteconfigs=${remoteconfigs#*,}
-    echo "remoteconfigs=$remoteconfigs"
+  eval remoteconfigs=$remoteconfigs # to split quoted words
+  for config in ${remoteconfigs[*]}; do
     localdir=$backupdir/$remote/$config
-    echo "localdir=$localdir"
     # make subdirs if needed
     mkdir -p $localdir/nightly $localdir/weekly $localdir/monthly
     # pull down last nightly from remote.
