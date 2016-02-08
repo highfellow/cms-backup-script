@@ -40,58 +40,76 @@ monthlyfiles=3
 cfg_parser $confdir/pullbackups.ini
 cfg_section global
 eval backupdir=$backupdir # so that ~s work.
-if [ "$remotedir" == "" ] ; then
-  echo "Remote directory not found in $confdir/pullbackups.ini"
-  exit 1
-fi
 if [ "$backupdir" == "" ] ; then
   echo "Backup directory not found in $confdir/pullbackups.ini"
   exit 1
 fi
 
-echo "Pulling down backups from $remotedir to $backupdir"
+echo "Pulling down backups to $backupdir"
 
 cd $backupdir
 date=`date`
-for config in "$@"; do
-  # make subdirs if needed
-  mkdir -p $backupdir/$config/nightly $backupdir/$config/weekly $backupdir/$config/monthly
-  # pull down last nightly from remote.
-  echo "pulling last nightly for $config"
-  if [ "`ls $backupdir/$config/nightly`" != "" ]; then
-    olddir=$backupdir/$config/nightly/`ls -r $backupdir/$config/nightly | head -n 1`
-  else
-    olddir=$backupdir/$config/nightly/1970-01-01-00-00-00
-    mkdir -p $olddir
-    sleep 2 # so new dir is datestamped later.
-  fi
-  newdir=$backupdir/$config/nightly/`date +%Y-%m-%d-%H-%M-%S`
-  rsync -atz --copy-links --partial --delete --link-dest=$olddir $remotedir/$config/latest/ $newdir
-  echo "generating weeklies/monthlies for $config"
-  # remove old backup files from auto directories.
-  cd $backupdir/$config/nightly || {
-    echo "Error - Can't find nightly backup dir."
+for remote in $*; do
+  # parse the ini file for this remote account
+  if ! [ -f $confdir/pullbackups.d/$remote.ini ] ; then
+    echo "Can't find remote configuration file: $confdir/pullbackups.d/$remote.ini"
     exit 1
-  }
-  ls -r | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -rf
-  if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
-    cp -rl $newdir $backupdir/$config/weekly
   fi
-  if [ $weeklyfiles -gt 0 ] ; then
-    cd $backupdir/$config/weekly || {
-      echo "Error - Can't find weekly backup dir."
+  echo "processing backups for remote account: $remote"
+  remotedir=
+  cfg_parser $confdir/pullbackups.d/$remote.ini
+  cfg_section remote
+  if [ "$remotedir" == "" ] ; then
+    echo "Remote directory not found in $confdir/pullbackups.d/$remote.ini"
+    exit 1
+  fi
+  # iterate through list of remote configs
+  remoteconfigs=${remoteconfigs},
+  while [ "$remoteconfigs" != "" ] ; do
+    config=${remoteconfigs%%,*}
+    remoteconfigs=${remoteconfigs#*,}
+    echo "remoteconfigs=$remoteconfigs"
+    localdir=$backupdir/$remote/$config
+    echo "localdir=$localdir"
+    # make subdirs if needed
+    mkdir -p $localdir/nightly $localdir/weekly $localdir/monthly
+    # pull down last nightly from remote.
+    echo "pulling last nightly for $config"
+    if [ "`ls $localdir/nightly`" != "" ]; then
+      olddir=$localdir/nightly/`ls -r $localdir/nightly | head -n 1`
+    else
+      olddir=$localdir/nightly/1970-01-01-00-00-00
+      mkdir -p $olddir
+      sleep 2 # so new dir is datestamped later.
+    fi
+    newdir=$localdir/nightly/`date +%Y-%m-%d-%H-%M-%S`
+    rsync -atz --copy-links --partial --delete --link-dest=$olddir $remotedir/$config/latest/ $newdir
+    echo "generating weeklies/monthlies for $config"
+    # remove old backup files from auto directories.
+    cd $localdir/nightly || {
+      echo "Error - Can't find nightly backup dir."
       exit 1
     }
-    ls -r | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -rf
-  fi
-  if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
-    cp -rl $newdir $backupdir/$config/monthly
-  fi
-  if [ $monthlyfiles -gt 0 ] ; then
-    cd $backupdir/$config/monthly || {
-      echo "Error - Can't find monthly backup dir."
-      exit 1
-    }
-    ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
-  fi
+    ls -r | tail -n +$(( $nightlyfiles + 1 )) | xargs rm -rf
+    if [ `date -d "$date" +%a` == "$weeklyday" ] && [ $weeklyfiles -gt 0 ] ; then
+      cp -rl $newdir $localdir/weekly
+    fi
+    if [ $weeklyfiles -gt 0 ] ; then
+      cd $localdir/weekly || {
+        echo "Error - Can't find weekly backup dir."
+        exit 1
+      }
+      ls -r | tail -n +$(( $weeklyfiles + 1 )) | xargs rm -rf
+    fi
+    if [ `date -d "$date" +%d` == "$monthlyday" ] && [ $monthlyfiles -gt 0 ] ; then
+      cp -rl $newdir $localdir/monthly
+    fi
+    if [ $monthlyfiles -gt 0 ] ; then
+      cd $localdir/monthly || {
+        echo "Error - Can't find monthly backup dir."
+        exit 1
+      }
+      ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
+    fi
+  done
 done
