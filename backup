@@ -45,7 +45,11 @@ finish () {
 parms=()
 mode=manual
 while [ "$1" != "" ]; do
-  if [ "$1" == "-s" ] || [ "$1" == "--summarise" ] ; then
+  if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    mode=help
+    break
+  fi
+  if [ "$1" == "-s" ] || [ "$1" == "--summarise" ]; then
     mode=summary
     break
   fi
@@ -58,7 +62,7 @@ while [ "$1" != "" ]; do
   shift
 done
 
-if [ "$mode" != "summary" ] && [ ${#parms[*]} -eq 0 ]; then
+if [ "$mode" == "help" ] || [ "$mode" != "summary" ] && [ ${#parms[*]} -eq 0 ]; then
     echo "backup [-a] [-s] [<config-name>...]"
     echo "run a backup configuration from $CONFDIR/<config-name>.ini"
     exit 1
@@ -101,11 +105,12 @@ eval backupdir=$backupdir
 eval logfile=$logfile
 eval errfile=$errfile
 eval summaryfile=$summaryfile
+eval mailto=$mailto # to remove quotes
 
 if [ "$mode" == "summary" ] && [ "$mailto" != "" ]; then
   echo -e "\nDisk usage\n----------\n`df -h`" >> $summaryfile
-  cat $summaryfile | mail -s "Backup summary for $USER@`hostname`" $mailto
-  echo -e "Summary of this week's backup runs for $USER@`hostname`.\n" > $summaryfile
+  cat $summaryfile | mail -s "Backup summary for $USER@$HOSTNAME" $mailto
+  echo -e "Summary of this week's backup runs for $USER@$HOSTNAME.\n" > $summaryfile
   exit 0
 fi
 
@@ -123,7 +128,7 @@ if [ "$mode" == "manual" ] ; then
 else
   echo -n "automatic"
 fi
-echo -e " mode"
+echo " mode"
 
 for config in "${parms[@]}"; do
   echo
