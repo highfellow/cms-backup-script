@@ -1,0 +1,17 @@
+/var/log/backup.log {
+  rotate 10
+  daily
+  compress
+  delaycompress
+  missingok
+  notifempty
+}
+
+/var/log/backup.err {
+  rotate 10
+  daily
+  compress
+  delaycompress
+  missingok
+  notifempty
+}
