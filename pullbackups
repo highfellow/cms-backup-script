@@ -88,8 +88,8 @@ fi
 
 if [ "$mode" == "summary" ] && [ "$mailto" != "" ]; then
   echo -e "\nDisk usage\n----------\n`df -h`" >> $summaryfile
-  cat $summaryfile | mail -s "Pullbackups summary for $USER@$HOSTNAME" $mailto
-  echo -e "Summary of this week's fetches of remote backups for $USER@$HOSTNAME.\n" > $summaryfile
+  cat $summaryfile | mail -s "Pullbackups summary for `whoami`@`hostname`" $mailto
+  echo -e "Summary of this week's fetches of remote backups for `whoami`@`hostname`.\n" > $summaryfile
   exit 0
 fi
 
