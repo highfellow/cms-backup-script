@@ -1,6 +1,6 @@
 CMS Backup script
 =================
-This is a script, `backup`, which handles backups of a content management system. I.e. some files plus one or more databases. The files can be specified quite flexibly as paths to include or exclude relative to a top level directory given in the global config file. The databases can be (currently) either mysql or postgresql. There is also another script, `pullbackups`, which will pull down backups generated this way from a remote server. The bulk of the work done by both scripts is handled by `rsync`.
+This is a script, `backup`, which handles backups of a content management system. I.e. some files plus one or more databases. The files can be specified quite flexibly as paths to include or exclude relative to a top level directory given in the global config file. The databases can be (currently) either mysql or postgresql. There is also another script, `pullbackups`, which will pull down backups generated this way from a remote server for off site storage. The bulk of the work done by both scripts is handled by `rsync`.
 
 The backup script
 -----------------
