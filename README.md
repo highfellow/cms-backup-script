@@ -1,6 +1,6 @@
 CMS Backup script
 =================
-This is a script (`backup`) which handles backups of a content management system. I.e. some files plus one or more databases. The files can be specified quite flexibly as paths to include or exclude relative to a top level directory given in the global config file. The databases can be (currently) either mysql or postgresql. There is also another script (`pullbackups`) which will pull down backups generated this way from a remote server. The bulk of the work done by both scripts is handled by `rsync`.
+This is a script, `backup`, which handles backups of a content management system. I.e. some files plus one or more databases. The files can be specified quite flexibly as paths to include or exclude relative to a top level directory given in the global config file. The databases can be (currently) either mysql or postgresql. There is also another script, `pullbackups`, which will pull down backups generated this way from a remote server. The bulk of the work done by both scripts is handled by `rsync`.
 
 The backup script
 -----------------
@@ -16,11 +16,13 @@ Installation
 ------------
 To install, first clone the repository with `git clone --recursive https://github.com/highfellow/cms-backup-script.git` to a suitable location (e.g. `/usr/local/src`)
 
-To set up the `backup` script, symlink `backup` to `/usr/local/bin/backup` and `backup.ini` to `/usr/local/etc/backup.ini`. Make a directory `backup.d` in `/usr/local/etc`; this contains any number of `<configname>.ini` files, which define a particular set of files and databases to back up. `example.ini` in this directory can be used as a template. For more information, see the comments in `backup.ini` and `example.ini`. 
+To set up the `backup` script, symlink `backup` to `/usr/local/bin/backup` and copy `backup.ini` to `/usr/local/etc/backup.ini`. Make a directory `backup.d` in `/usr/local/etc`; this contains any number of `<configname>.ini` files, which define a particular set of files and databases to back up. `example.ini` in this directory can be used as a template. Edit the `.ini` files as necessary. For more information, see the comments in `backup.ini` and `example.ini`. 
 
-To set up `pullbackups`, you need to do much the same thing. Symlink `pullbackups` to `/usr/local/bin/pullbackups` and `pullbackups.ini` to `/usr/local/etc/pullbackups.ini`. Make a directory `pullbackups.d` in `/usr/local/etc` containing `<remotename>.ini` files, using `pb-example.ini` as a template.
+To set up `pullbackups`, you need to do much the same thing. Symlink `pullbackups` to `/usr/local/bin/pullbackups` and copy `pullbackups.ini` to `/usr/local/etc/pullbackups.ini`. Make a directory `pullbackups.d` in `/usr/local/etc` containing `<remotename>.ini` files, using `pb-example.ini` as a template.
 
 You also need to set up your remote account to allow password-less logins from the machine you are installing `pullbackups` on. The normal way of doing this is to copy your ssh public key from the local machine to `~/.ssh/authorized_keys` in the home directory of the remote account.
+
+If you will be running the script(s) in automatic mode, you'll also need to copy the relevant `.logrotate` files to `/usr/local/etc` and edit as necessary.
 
 Invocation - backup
 -------------------
@@ -37,3 +39,31 @@ You run this script using `pullbackups [--auto] [--summarise] [--stop] [<remoten
 The `--summarise` option will mail the weekly summary log to one or more addresses given in `pullbackups.ini`.
 
 The `--stop` option allows you to safely stop a running pullbackups process, so as to prevent it from running into the next day and hogging daytime bandwidth. You just need to call `pullbackups --stop` from a cron job.
+
+Automatic invocation
+--------------------
+Both programs can be called from a cron job to automate taking nightly backups and pulling them down to an off site machine. Below are example crontab entries with comments.
+
+Crontab for `backup`:
+```
+# backup a personal blog and a client website to the local archive.
+30 0 * * * /usr/local/bin/backup -a myblog clientsite
+# every tuesday at 10 am, mail out a weekly summary of the results of the backup.
+0 10 * * 2 /usr/local/bin/backup --summarise
+# rotate the log files. Note that if logrotate is run as a non-root user, it needs to be given a path to a file
+# it can store its state in.
+0 0 * * * /usr/local/bin/logrotate -s /var/local/lib/logrotate/status /usr/local/etc/backup.logrotate
+```
+
+Crontab for `pullbackups`:
+```
+# pull down backups from the machine running the backup script.
+30 0 * * * /usr/local/bin/pullbackups -a me@remote.org
+# every morning, stop the pullbackups process if necessary
+0 8 * * * /usr/local/bin/pullbackups --stop
+# every tuesday at 10 am, mail out a weekly summary of the results of the backup pull.
+0 10 * * 2 /usr/local/bin/pullbackups --summarise
+# rotate the log files. Note that if logrotate is run as a non-root user, it needs to be given a path to a file
+# it can store its state in.
+0 0 * * * /usr/local/bin/logrotate -s /var/local/lib/logrotate/status /usr/local/etc/pullbackups.logrotate
+```
