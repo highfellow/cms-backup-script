@@ -181,7 +181,7 @@ for config in "${parms[@]}"; do
     else
       verbose=v
     fi
-    find $include -type f | sort | uniq | egrep -v $exclude | rsync -at$verbose --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
+    find $include -type f 2>/dev/null | sort | uniq | egrep -v $exclude | rsync -at$verbose --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
   fi
 
   # now dump all the databases
