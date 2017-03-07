@@ -34,7 +34,7 @@ finish () {
   if [ "$" == "" ] ; then
     message="Bye bye."
   fi
-  echo "Exiting: $message"
+  echo -e "Exiting: $message"
   if [ "$mode" == "nightly" ]; then
     echo "`date` - $message" >>$summaryfile
   fi
@@ -96,6 +96,9 @@ logfile=/var/log/backup.log
 errfile=/var/log/backup.err
 summaryfile=/var/log/backup.smy
 mailto=
+usbfsname=
+usbmountpoint=
+usbdeviceletter=b
 
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
@@ -119,6 +122,24 @@ if [ "$mode" == "nightly" ]; then
   echo "Starting up at `date`" >>$logfile
   echo "Starting up at `date`" >>$errfile
   exec >>$logfile 2>>$errfile
+fi
+
+if [ "$usbmountpoint" != "" ]; then
+  # try to mount a USB drive
+  if ! mount | egrep -q "\bon $usbmountpoint"; then
+    echo -n "Trying to mount removable device..."
+    for dev in /dev/sd[$usbdeviceletter-z]?; do
+      devlabel=`e2label $dev`
+      if [ "${devlabel#$usbfsname}" != "$devlabel" ]; then
+        # the filesystem's label starts with the right string
+        mount $dev $usbmountpoint || finish 2 "\nError - can't mount backup device $dev"
+        echo " done."
+        break
+      else
+        finish 2 "\nError - can't find backup device to mount"
+      fi
+    done
+  fi
 fi
 
 # start doing the backups.

@@ -1,0 +1,5 @@
+# udev rules to start the mount-usb script
+# symlink this file to /etc/udev/rules.d/NN-mount-usb.rules
+# where NN is the udev event priority
+
+KERNEL=="sd?1", ENV{DEVTYPE}=="partition", ENV{SUBSYSTEM}=="block", RUN+="/usr/local/bin/mount-usb"

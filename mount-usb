@@ -1,0 +1,62 @@
+#!/bin/bash
+#
+# script to automount usb disks.
+#
+
+# find the device information.
+DEVINFO=$(/sbin/blkid -p $DEVNAME)
+FSTYPE=$(echo "$DEVINFO"  | sed 's/.* TYPE="\([^"]*\)".*/\1/g; s/[[:blank:]]*//g;')
+UUID=$(echo "$DEVINFO"  | sed 's/.* UUID="\([^"]*\)".*/\1/g; s/[[:blank:]]*//g;')
+LABEL=$(echo "$DEVINFO"  | sed 's/.* LABEL="\([^"]*\)".*/\1/g; s/[[:blank:]]*//g;')
+
+echo $ACTION $DEVNAME $FSTYPE $UUID $LABEL > /tmp/mount-usb
+
+# work out where I am and find some things.
+mydir=`readlink -f $0`
+mydir=${mydir%/*}
+. $mydir/bash-ini-multisection/ini-parse.sh
+confdir=${0%/*}
+if [ "$confdir" == "." ]; then
+  confdir=`pwd`
+fi
+if [ "$confdir" == ".." ]; then
+  confdir=`pwd`
+  confdir=${confdir%/*}
+fi
+confdir=${confdir%/*}/etc # edit this if your global config is somewhere else.
+
+# set some defaults.
+usbfsname=USBBACKUP
+usbmountpoint=/mnt/backup
+
+# parse the global configuration
+cfg_parser $confdir/backup.ini
+cfg_section_merge global
+
+{
+case $ACTION in
+  (add)
+    if [ "${LABEL#$usbfsname}" != "$LABEL" ] && ! mount | grep $usbmountpoint ; then
+      # it's a usb backup disk (and no other is mounted).
+      MOUNT=$usbmountpoint
+    else
+      # otherwise automount it under /media.
+      if [ "$LABEL" != "" ] ; then
+        MOUNT=/mnt/$LABEL
+      else
+        MOUNT=/mnt/$UUID
+      fi
+    fi
+    MOUNT=${MOUNT// /_}
+    mkdir -p $MOUNT
+    mount -t $FSTYPE $DEVNAME $MOUNT
+    ;;
+  (remove)
+    MOUNT=`mount|grep $DEVNAME|cut -f3 -d' '`
+    umount $DEVNAME
+    if [ "$MOUNT" != "$usbmountpoint" ] ; then
+      rmdir $MOUNT
+    fi
+    ;;
+esac
+} >>/dev/null 2>&1 #>> /tmp/mount-usb 2>&1

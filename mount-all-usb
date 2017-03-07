@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# mount all usb devices (a bit crudely)
+#
+
+# work out where I am and find some things.
+mydir=`readlink -f $0`
+mydir=${mydir%/*}
+. $mydir/bash-ini-multisection/ini-parse.sh
+confdir=${0%/*}
+if [ "$confdir" == "." ]; then
+  confdir=`pwd`
+fi
+if [ "$confdir" == ".." ]; then
+  confdir=`pwd`
+  confdir=${confdir%/*}
+fi
+confdir=${confdir%/*}/etc # edit this if your global config is somewhere else.
+
+# set some defaults.
+usbdevletter=b # first /dev/sd? letter for usb devices.
+
+# parse the global configuration
+cfg_parser $confdir/backup.ini
+cfg_section_merge global
+
+for dev in `ls -1 /dev/sd[${usbdevletter}-z]1`; do
+  ACTION=add DEVNAME=$dev mount-usb
+done
