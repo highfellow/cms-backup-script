@@ -99,6 +99,7 @@ mailto=
 usbfsname=
 usbmountpoint=
 usbdeviceletter=b
+rsyncopts=
 
 # parse the global configuration 
 cfg_parser $confdir/backup.ini
@@ -178,8 +179,11 @@ for config in "${parms[@]}"; do
   cfg_parser $conffile
 
   # read in any overridden globals and the file include and exclude lists
+  globrsyncopts=rsyncopts
   cfg_section_merge global
   cfg_section files
+  eval rsyncopts=$rsyncopts # to remove quotes
+  
   echo "  Backing up files:"
   echo "  Including: $include"
   echo "  Excluding: $exclude"
@@ -207,7 +211,7 @@ for config in "${parms[@]}"; do
     else
       verbose=v
     fi
-    find $include -type f 2>/dev/null | sort | uniq | egrep -v $exclude | rsync -at$verbose --delete --link-dest=$olddir/files --files-from - $rootdir $outdir/files
+    find $include -type f 2>/dev/null | sort | uniq | egrep -v $exclude | rsync -rt$verbose --delete --link-dest=$olddir/files --files-from - $rsyncopts $rootdir $outdir/files
   fi
 
   # now dump all the databases
@@ -260,6 +264,8 @@ for config in "${parms[@]}"; do
       ls -t | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
     fi
   fi
+  # restore rsyncopts to global default
+  rsyncopts=globrsyncopts
 done
 
 finish 0 "Backup completed"
