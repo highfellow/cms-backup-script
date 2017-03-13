@@ -1,0 +1,14 @@
+# crontab file for the backup system. Should be copied or linked into 
+# /etc/cron.d, and edited as appropriate.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# m h dom mon dow user	command
+
+# nightly backup job.
+0 1 * * * root /usr/local/bin/backup -a <config>
+
+# mail a weekly summary to relevant people.
+0 10 * * 2 root /usr/local/bin/backup -s
+

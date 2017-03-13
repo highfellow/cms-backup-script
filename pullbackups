@@ -78,6 +78,7 @@ mailto=
 summaryfile=/var/log/pullbackups.smy
 logfile=/var/log/pullbackups.log
 errfile=/var/log/pullbackups.err
+rsyncopts=
 
 # parse the global configuration 
 cfg_parser $confdir/pullbackups.ini
@@ -133,8 +134,12 @@ for remote in ${parms[*]}; do
   fi
   echo "processing backups for remote account: $remote"
   remotedir=
+  globrsyncopts=rsyncopts
   cfg_parser $confdir/pullbackups.d/$remote.ini
   cfg_section remote
+  cfg_section_merge global
+  eval rsyncopts=$rsyncopts # to remove quotes
+
   if [ "$remotedir" == "" ] ; then
     echo "Remote directory not found in $confdir/pullbackups.d/$remote.ini"
     finish 2 "configuration error"
@@ -164,7 +169,7 @@ for remote in ${parms[*]}; do
     rm -f $rsyncerrfile
     export rsyncerrfile verbose olddir remotedir config newdir
     # start rsync in a sub shell.
-    (rsync -atz$verbose --copy-links --partial --delete --link-dest=$olddir $remotedir/$config/latest/ $newdir; echo "$?">$rsyncerrfile) &
+    (rsync -rtz$verbose --copy-links --partial --delete --link-dest=$olddir $remotedir/$config/latest/ $rsyncopts $newdir; echo "$?">$rsyncerrfile) &
     rsyncpid=$!
     while ! [ -f $rsyncerrfile ]; do
       sleep 10
@@ -227,6 +232,7 @@ for remote in ${parms[*]}; do
       }
       ls -r | tail -n +$(( $monthlyfiles + 1 )) | xargs rm -rf
     fi
+    rsyncopts=$globrsyncopts
   done
 done
 finish $exitcode "$exitmsg"
