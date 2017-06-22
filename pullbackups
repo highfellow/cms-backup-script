@@ -75,6 +75,7 @@ weeklyfiles=5
 monthlyday=01
 monthlyfiles=3
 mailto=
+mailopts=
 summaryfile=/var/log/pullbackups.smy
 logfile=/var/log/pullbackups.log
 errfile=/var/log/pullbackups.err
@@ -89,6 +90,7 @@ eval errfile=$errfile
 eval summaryfile=$summaryfile
 eval rsyncerrfile=$rsyncerrfile
 eval mailto=$mailto # to split quoted words
+eval mailopts=$mailopts # ditto
 
 if [ "$backupdir" == "" ] ; then
   echo "Backup directory not found in $confdir/pullbackups.ini"
@@ -98,7 +100,7 @@ fi
 if [ "$mode" == "summary" ] && [ "$mailto" != "" ]; then
   # mail the summary log
   echo -e "\nDisk usage\n----------\n`df -h`" >> $summaryfile
-  cat $summaryfile | mail -s "Pullbackups summary for `whoami`@`hostname`" $mailto
+  cat $summaryfile | mail $mailopts -s "Pullbackups summary for `whoami`@`hostname`" $mailto
   echo -e "Summary of this week's fetches of remote backups for `whoami`@`hostname`.\n" > $summaryfile
   exit 0
 fi
