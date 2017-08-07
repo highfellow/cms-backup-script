@@ -225,7 +225,7 @@ for config in "${parms[@]}"; do
       case $type in
           mysql)
               echo '(mysql)'
-              mysqldump $name --user=$username --password=$password > $outdir/databases/$name.sql
+              mysqldump $name --user=$username --password=$password --single-transaction > $outdir/databases/$name.sql
               ;;
           pgsql)
               echo '(pgsql)'
