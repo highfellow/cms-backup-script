@@ -36,7 +36,7 @@ cfg_section_merge global
 {
 case $ACTION in
   (add)
-    if [ "${LABEL#$usbfsname}" != "$LABEL" ] && ! mount | grep $usbmountpoint ; then
+    if [ "${LABEL#${usbfsname}?}" != "$LABEL" ] && ! mount | grep $usbmountpoint ; then
       # it's a usb backup disk (and no other is mounted).
       MOUNT=$usbmountpoint
     else
